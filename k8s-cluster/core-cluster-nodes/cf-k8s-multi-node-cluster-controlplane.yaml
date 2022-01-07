@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: 2010-09-09
+Descrition: Template to provision multi node kubernetes cluster
+Parameters:
+  VPCStack: 
+    Description: "VPC Cloudformation stack name (Example:- ApiGateway-Dev-VPC-Stack-VPCID, Option type: Mandatory)"
+    Type: String
+    MinLength: 1
+  EKSVersion:
+    Description: "Specify Kubernetes Version (Example:- 1.13.8 Option type: Mandatory)"
+    Type: String
+    Default: 1.21
+    MinLength: 1
+  EKSRoleArn:
+    Description: "Specify Service Role ARN stack name (Example:- ApiGateway-Dev-IAM-EKSServiceRole-Stack-RoleArn)"
+    Type: String
+    MinLength: 1
+  EKSControlplaneSG:
+    Description: "Specify ClusterControlPlane Security Group stack export name (Example:- ApiGateway-Dev-ControlPlane-WorkderNode-SG-Stack)"
+    Type: String
+    MinLength: 1
+Resources:
+  EKSClusterNodeIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - eks.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: Prod
+      Version: "1.20"
+      RoleArn: "arn:aws:iam::012345678910:role/eks-service-role-AWSServiceRoleForAmazonEKS-EXAMPLEBQ4PI"
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - sg-6979fe18
+        SubnetIds:
+          - subnet-6782e71e
+          - subnet-e7e761ac
+        EndpointPublicAccess: false
+        EndpointPrivateAccess: true
+        PublicAccessCidrs: [ "1.1.1.2/32" ]
+      Logging:
+        ClusterLogging:
+          EnabledTypes:
+            - Type: api
+            - Type: audit
+      Tags:
+        - Key: "key"
+          Value: "val"

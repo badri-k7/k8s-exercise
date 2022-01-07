@@ -1,0 +1,356 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Create IAM Service Role, InstanceProfile, InlinePolicies for EKS NodeInstance,Jumphost'
+Resources:
+  AdminNodeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: '/'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+        - arn:aws:iam::aws:policy/CloudWatchEventsFullAccess
+
+  AdminNodeRoleKMSPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "admin-node-KMSrole-policy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "KMSAccess"
+            Effect: "Allow"
+            Action:
+              - "kms:Describe"
+              - "kms:Get*"
+              - "kms:List*"
+            Resource:
+              - "*"
+      Roles:
+        -
+          Ref: "AdminNodeInstanceRole"
+
+  AdminNodeEksRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "admin-node-role-policy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "EKSFullAccess"
+            Effect: "Allow"
+            Action:
+              - "eks:*"
+            Resource:
+              - "*"
+      Roles:
+        -
+          Ref: "AdminNodeInstanceRole"
+  AdminNodeParameterStorePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "admin-node-parameter-store-policy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "DescribeParameterStore"
+            Effect: "Allow"
+            Action:
+              - "ssm:DescribeParameters"
+            Resource:
+              - "*"
+          -
+            Sid: "GetParameterStore"
+            Effect: "Allow"
+            Action:
+              - "ssm:GetParameters"
+            Resource:
+              - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/k8s-nonadmin-user-accesskey'
+              - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/k8s-nonadmin-user-secret_accesskey'
+          -
+            Sid: "DecryptSecureStore"
+            Effect: "Allow"
+            Action:
+              - "kms:Decrypt"
+            Resource:
+              - !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/ssm'
+      Roles:
+        -
+          Ref: "AdminNodeInstanceRole"
+
+  AdminNodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      InstanceProfileName: AdminNodeInstanceProfile
+      Path: "/"
+      Roles: 
+       - !Ref AdminNodeInstanceRole
+
+  WorkerNodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: WorkerNodeInstanceProfile
+      Path: "/"
+      Roles:
+        - !Ref WorkerNodeInstanceRole
+
+  WorkerNodeBackupPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "WorkerNodeBackupPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "EKSS3BackupAccess"
+            Effect: "Allow"
+            Action:
+              - "s3:*"
+            Resource: "*"
+      Roles:
+        -
+          Ref: "WorkerNodeInstanceRole"
+          Ref: "AdminNodeInstanceRole"
+
+  
+  WorkerNodeParameterStorePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "WorkerNodeParameterStorePolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "WorkerNodeParameterStore"
+            Effect: "Allow"
+            Action:
+              - "s3:*"
+              - ssm:GetParameterHistory
+              - ssm:ListTagsForResource
+              - ssm:DescribeDocumentParameters
+              - ssm:GetDocument
+              - ssm:DescribeDocumentPermission
+              - ssm:GetParametersByPath
+              - ssm:GetParameters
+              - ssm:GetParameter
+            Resource:
+              - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*'  
+      Roles:
+        -
+          Ref: "WorkerNodeInstanceRole"
+
+  WorkerNodePodAutoScalerPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "WorkerNodeAutoScalerPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "WorkerNodePODAutoScaler"
+            Effect: "Allow"
+            Action:
+              - "ec2:Describe*"
+              - "autoscaling:DescribeAutoScalingGroups"
+              - "autoscaling:DescribeAutoScalingInstances"
+              - "autoscaling:DescribeLaunchConfigurations"
+              - "autoscaling:DescribeTags"
+              - "autoscaling:SetDesiredCapacity"
+              - "autoscaling:TerminateInstanceInAutoScalingGroup"
+            Resource: "*"
+
+      Roles:
+        -
+          Ref: "WorkerNodeInstanceRole"
+
+  WorkerNodeCloudWatchLogsPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "WorkerNodeCloudWatchLogsPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "WorkerNodeCloudWatchLogs"
+            Effect: "Allow"
+            Action:
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+              - "logs:DescribeLogGroups"
+              - "logs:DescribeLogStreams"
+            Resource: "arn:aws:logs:*:*:*"
+      Roles:
+        -
+          Ref: "WorkerNodeInstanceRole"
+
+  WorkerNodeALBIngressControllerPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "WorkerNodeALBIngressControllerPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "WorkerNodeALBIngressController"
+            Effect: "Allow"
+            Action:
+              - "acm:DescribeCertificate"
+              - "acm:ListCertificates"
+              - "acm:GetCertificate"
+            Resource: "*"
+
+          -
+            Effect: "Allow"
+            Action:
+              - "ec2:AuthorizeSecurityGroupIngress"
+              - "ec2:CreateSecurityGroup"
+              - "ec2:CreateTags"
+              - "ec2:DeleteTags"
+              - "ec2:DeleteSecurityGroup"
+              - "ec2:DescribeAccountAttributes"
+              - "ec2:DescribeAddresses"
+              - "ec2:DescribeInstances"
+              - "ec2:DescribeInstanceStatus"
+              - "ec2:DescribeInternetGateways"
+              - "ec2:DescribeNetworkInterfaces"
+              - "ec2:DescribeSecurityGroups"
+              - "ec2:DescribeSubnets"
+              - "ec2:DescribeTags"
+              - "ec2:DescribeVpcs"
+              - "ec2:DescribeVolumes"
+              - "ec2:ModifyInstanceAttribute"
+              - "ec2:ModifyNetworkInterfaceAttribute"
+              - "ec2:RevokeSecurityGroupIngress"
+            Resource: "*"
+
+          -
+            Effect: "Allow"
+            Action:
+              - "elasticloadbalancing:AddListenerCertificates"
+              - "elasticloadbalancing:AddTags"
+              - "elasticloadbalancing:CreateListener"
+              - "elasticloadbalancing:CreateLoadBalancer"
+              - "elasticloadbalancing:CreateRule"
+              - "elasticloadbalancing:CreateTargetGroup"
+              - "elasticloadbalancing:DeleteListener"
+              - "elasticloadbalancing:DeleteLoadBalancer"
+              - "elasticloadbalancing:DeleteRule"
+              - "elasticloadbalancing:DeleteTargetGroup"
+              - "elasticloadbalancing:DeregisterTargets"
+              - "elasticloadbalancing:DescribeListenerCertificates"
+              - "elasticloadbalancing:DescribeListeners"
+              - "elasticloadbalancing:DescribeLoadBalancers"
+              - "elasticloadbalancing:DescribeLoadBalancerAttributes"
+              - "elasticloadbalancing:DescribeRules"
+              - "elasticloadbalancing:DescribeSSLPolicies"
+              - "elasticloadbalancing:DescribeTags"
+              - "elasticloadbalancing:DescribeTargetGroups"
+              - "elasticloadbalancing:DescribeTargetGroupAttributes"
+              - "elasticloadbalancing:DescribeTargetHealth"
+              - "elasticloadbalancing:ModifyListener"
+              - "elasticloadbalancing:ModifyLoadBalancerAttributes"
+              - "elasticloadbalancing:ModifyRule"
+              - "elasticloadbalancing:ModifyTargetGroup"
+              - "elasticloadbalancing:ModifyTargetGroupAttributes"
+              - "elasticloadbalancing:RegisterTargets"
+              - "elasticloadbalancing:RemoveListenerCertificates"
+              - "elasticloadbalancing:RemoveTags"
+              - "elasticloadbalancing:SetIpAddressType"
+              - "elasticloadbalancing:SetSecurityGroups"
+              - "elasticloadbalancing:SetSubnets"
+              - "elasticloadbalancing:SetWebACL"
+            Resource: "*"
+               
+          -
+            Effect: "Allow"
+            Action:
+              - "iam:CreateServiceLinkedRole"
+              - "iam:GetServerCertificate"
+              - "iam:ListServerCertificates"
+            Resource: "*"
+
+          -
+            Effect: "Allow"
+            Action:
+              - "waf-regional:GetWebACLForResource"
+              - "waf-regional:GetWebACL"
+              - "waf-regional:AssociateWebACL"
+              - "waf-regional:DisassociateWebACL"
+            Resource: "*"
+ 
+          -
+            Effect: "Allow"
+            Action:
+              - "tag:GetResources"
+              - "tag:TagResources"
+            Resource: "*"
+
+          -
+            Effect: "Allow"
+            Action:
+              - "waf:GetWebACL"
+            Resource: "*"
+
+      Roles:
+        -
+          Ref: "WorkerNodeInstanceRole"
+
+  WorkerNodeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+Outputs:
+  RoleArn:
+    Description: The role that Amazon EKS will use to create AWS resources for Kubernetes clusters
+    Value: !GetAtt AdminNodeInstanceRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-RoleArn"
+
+  AdminNodeInstanceProfileName:
+    Description: The role will use to create Jumphost to Managed EKS Cluster
+    Value: !GetAtt AdminNodeInstanceProfile.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-AdminNodeInstanceProfile"
+
+  WorkerNodeInstanceRole:
+    Description: The EKS Workernode instance role
+    Value: !GetAtt WorkerNodeInstanceRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-WorkerNodeInstanceRole"
+
+  WorkerNodeInstanceProfile:
+    Description: The EKS Workernode instance profile
+    Value: !GetAtt WorkerNodeInstanceProfile.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-WorkerNodeInstanceProfile"

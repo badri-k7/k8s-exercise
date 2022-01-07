@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Template for EKSCluster Security Group
+Parameters:
+  VPCStack:
+    Description: "VPC Cloudformation stack name (Example:- cf-vpc-multiaz-hybrid, Option type: Mandatory)"
+    Type: String
+    Default: cf-vpc-multiaz-hybrid
+    MinLength: 1
+  EKSClusterStack:
+    Description: "Specify Kubernetes cluster name, (Example:- HyphenEKSCluser, Option type: Mandatory)"
+    Type: String
+    Default: hyphen-kubernets-cluster
+    MinLength: 1
+  EKSJumphostStack:
+    Description: "Specify admin node stack name, (Example:- hyphen-kubernets-admin-node , Option type: Mandatory)"
+    Type: String
+    Default: hyphen-kubernetes-admin-node
+    MinLength: 1
+Resources:
+  ControlPlaneSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${VPCStack}-VPCID"
+      GroupDescription: Allow workder nodes to communicate to Controlplane
+      GroupName: kubernetescluster-controlplane-sg
+      Tags:
+        - Key: Name
+          Value: kubernetescluster-controlplane-sg
+
+  ControlPlaneSGInbound:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: 'Allow all worker node security groups to connect to Control plane port 443'
+      GroupId: !Ref ControlPlaneSecurityGroup
+      SourceSecurityGroupId: !Ref WorkerNodeSecurityGroup
+      IpProtocol: tcp
+      ToPort: 443
+      FromPort: 443
+
+  ControlPlaneSGInbound:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: 'Allow Jumphost security group to connect to Control plane port 443'
+      GroupId: !Ref ControlPlaneSecurityGroup
+      SourceSecurityGroupId:
+        Fn::ImportValue: !Sub "${EKSJumphostStack}-SecurityGroupID"
+      IpProtocol: tcp
+      ToPort: 443
+      FromPort: 443
+
+  ControlPlaneSGOutbound:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: "Allow all outbound traffic to worker nodes"
+      GroupId: !Ref ControlPlaneSecurityGroup
+      DestinationSecurityGroupId: !Ref WorkerNodeSecurityGroup
+      IpProtocol: '-1'
+      FromPort: 0
+      ToPort: 65535
+
+  WorkerNodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for all worker nodes in the cluster
+      GroupName: EKSCluster-WorkerNode-sg
+      VpcId:
+        Fn::ImportValue: !Sub "${VPCStack}-VPCID"
+      Tags:
+        - Key: Name
+          Value: EKSCluster-WorkerNode-sg
+
+  WorkerNodeSecurityGroupInboundAll1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow worker nodes to communicate with each other in all ephemeral ports
+      GroupId: !Ref WorkerNodeSecurityGroup
+      SourceSecurityGroupId: !Ref WorkerNodeSecurityGroup
+      IpProtocol: '-1'
+      FromPort: 1025
+      ToPort: 65535
+
+  WorkerNodeSecurityGroupInboundAll2:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow worker nodes to communicate to control plane in all ephemeral ports
+      GroupId: !Ref WorkerNodeSecurityGroup
+      SourceSecurityGroupId: !Ref ControlPlaneSecurityGroup
+      IpProtocol: '-1'
+      FromPort: 1025
+      ToPort: 65535
+
+  WorkerNodeSecurityGroupInboundHTTPS1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow worker nodes to communicate with each other using port 443
+      GroupId: !Ref WorkerNodeSecurityGroup
+      SourceSecurityGroupId: !Ref WorkerNodeSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+
+  WorkerNodeSecurityGroupInboundHTTPS2:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow worker nodes to communicate to control plane using port 443
+      GroupId: !Ref WorkerNodeSecurityGroup
+      SourceSecurityGroupId: !Ref ControlPlaneSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+
+  WorkerNodeSecurityGroupOutboundAll:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: Allow all outgoing traffic from worker nodes
+      GroupId: !Ref WorkerNodeSecurityGroup
+      CidrIp: '0.0.0.0/0'
+      IpProtocol: '-1'
+      FromPort: 0
+      ToPort: 65535
+
+Outputs:
+  WorkerNodeSecurityGroupId:
+    Description: Worker node security group id
+    Value: !GetAtt [WorkerNodeSecurityGroup, "GroupId"]
+    Export:
+      Name: !Sub "${AWS::StackName}-WorkerNodeSGID"
+
+  ControlPlaneSecurityGroupId:
+    Description: Control plane security group id
+    Value: !GetAtt [ControlPlaneSecurityGroup, "GroupId"]
+    Export:
+      Name: !Sub "${AWS::StackName}-ControlPlaneSGID"
