@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Template for EKSCluster Security Group
+Description: Cloudformation template to create Security Groups needed for the Kubernets cluseter
 Parameters:
   VPCStack:
     Description: "VPC Cloudformation stack name (Example:- cf-vpc-multiaz-hybrid, Option type: Mandatory)"
@@ -11,12 +11,27 @@ Parameters:
     Type: String
     Default: hyphen-kubernets-cluster
     MinLength: 1
-  EKSJumphostStack:
-    Description: "Specify admin node stack name, (Example:- hyphen-kubernets-admin-node , Option type: Mandatory)"
-    Type: String
-    Default: hyphen-kubernetes-admin-node
-    MinLength: 1
 Resources:
+  AdminNodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${VPCStack}-VPCID"
+      GroupDescription: Allow Admin/Kubectl nodes to communicate to Controlplane
+      GroupName: kubernetescluster-adminnode-sg
+      Tags:
+        - Key: Name
+          Value: kubernetescluster-adminnode-sg
+  AdminNodeSGInbound:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: 'Allow inbound access to Admin node over port 22'
+      GroupId: !Ref ControlPlaneSecurityGroup
+      CidrIp: 0.0.0.0/0
+      IpProtocol: tcp
+      ToPort: 22
+      FromPort: 22          
+  
   ControlPlaneSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -43,8 +58,7 @@ Resources:
     Properties:
       Description: 'Allow Jumphost security group to connect to Control plane port 443'
       GroupId: !Ref ControlPlaneSecurityGroup
-      SourceSecurityGroupId:
-        Fn::ImportValue: !Sub "${EKSJumphostStack}-SecurityGroupID"
+      SourceSecurityGroupId: !Ref AdminNodeSecurityGroup
       IpProtocol: tcp
       ToPort: 443
       FromPort: 443
@@ -132,3 +146,9 @@ Outputs:
     Value: !GetAtt [ControlPlaneSecurityGroup, "GroupId"]
     Export:
       Name: !Sub "${AWS::StackName}-ControlPlaneSGID"
+  
+  AdminNodeSecurityGroupId:
+    Description: Admin node security group id
+    Value: !GetAtt [AdminNodeSecurityGroup, "GroupId"]
+    Export:
+      Name: !Sub "${AWS::StackName}-AdminNodeSGID"

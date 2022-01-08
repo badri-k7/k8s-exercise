@@ -2,8 +2,9 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 
 TemplaParameters:
   VPCStack:
-    Description: "VPC Cloudformation stack name. (Example:- ApiGateway-Dev-VPC-Stack-VPCID, Option type: Mandatory)"
+    Description: "VPC Cloudformation stack name. (Example:- cf-vpc-multiaz-hybrid, Option type: Mandatory)"
     Type: String
+    MinLength: 1
  
   KeyName:
     Description: "Specify key pair name. (Example:- eks-managed-key , Option type: Mandatory)"
@@ -12,17 +13,12 @@ TemplaParameters:
     MaxLength: 16
 
   InstanceProfileArn:
-    Description: "Specify the Instance Profile stack name. (Example:- ApiGateway-Dev-IAM-EKSServiceRole-Stack-JumphostInstanceProfile, Option type: Mandatory)"
+    Description: "Specify the Instance Profile stack name. (Example:- cf-iam-roles-instance-profile, Option type: Mandatory)"
     Type: String
+    MinLength: 1
 
-  s3bucketname:
-    Description: "Specify the s3 bucket name. (Example:- sgx-apigateway-backup, Option type: Mandatory)"
-    Type: String
-    MinLength: 3
-    MaxLength: 63
-
-  eksclustername:
-    Description: "Specify the EKS Cluster name. (Example:-EKSClusterApiGateway-b5oDpuDQL5Fo , Option type: Mandatory)"
+  Eksclustername:
+    Description: "Specify the EKS Cluster name. (Example:- Hyphen-Kubernetes-Cluster , Option type: Mandatory)"
     Type: String
     MinLength: 1
 
