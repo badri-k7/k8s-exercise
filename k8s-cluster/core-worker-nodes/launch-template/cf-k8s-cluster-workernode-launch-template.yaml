@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'EC2 Launch template to add EKS Managed worker node group along with custom user data'
+Outputs:
+  HyphenManagedNodeLaunchTemplateID:
+    Description: LaunchTemplate ID for EKS Managed Worker Node
+    Export:
+      Name:
+        Fn::Sub: ${AWS::StackName}-HyphenManagedNodeLaunchTemplateID
+    Value:
+      Ref: EksEc2LaunchTemplate
+Parameters:
+  TemplateName:
+    Description: "Specify the ec2 launch template name. (Example:- Hyphen-Managed-Node-Launch-Template, Option type: Mandatory)"
+    Default: Hyphen-Managed-Node-Launch-Template
+    MinLength: 1
+    Type: String
+
+  KeyName:
+    ConstraintDescription: EC2 Key Pair Name.
+    Description: "The EC2 Key Pair to allow SSH access to the instances (Example:- hyphen-eks-managed-key, Option type: Mandatory)"
+    Default: hyphen-eks-managed-key
+    Type: AWS::EC2::KeyPair::KeyName
+  
+  NodeInstanceType:
+    Description: "EC2 instance type for the node instances (Example:- t3a.small, Option type: Optional)"
+    Type: String
+    Default: t3a.small
+    MinLength: 1
+    AllowedValues:
+      - t3a.small
+    
+  ClusterSecurityGroup:
+    Description: "Specify EKS default Cluster Security Group, (Example:-sg-05b5adbedf116e875, Option type: Mandatory)"
+    Default: sg-0b3a6aa620f167cc6
+    MinLength: 1
+    Type: String
+
+  AdminNodeSecurityGroup:
+    Description: "Specify Jumphost Security Group Stack, (Example:- StackName - sg-0cfc459b3cebf094c, Option type: Mandatory)"
+    Default: sg-0cfc459b3cebf094c
+    MinLength: 1
+    Type: String
+
+  WorkerNodeSecurityGroup:
+    Description: "Specify EKS worker node security Group Stack, (Example:- StackName - sg-0adffdd900f10b42d, Option type: Mandatory)"
+    Default: sg-0adffdd900f10b42d
+    MinLength: 1
+    Type: String
+    
+  DiskSize: 
+    Description: "Specify root device disk size, (Example:- 50, Option type: Mandatory)"
+    Default: 50
+    Type: Number
+    MaxValue: 50
+    
+Resources:
+  EksEc2LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Ref TemplateName
+      LaunchTemplateData:
+        TagSpecifications: 
+        - ResourceType: instance
+          Tags:
+            - Key: Name
+              Value: Hyphen-Managed-Worker-Node-Group
+        InstanceType: !Ref NodeInstanceType
+        DisableApiTermination: true
+        KeyName: !Ref KeyName
+        SecurityGroupIds:
+        - !Ref ClusterSecurityGroup
+        - !Ref AdminNodeSecurityGroup
+        - !Ref WorkerNodeSecurityGroup
+        BlockDeviceMappings:
+          - Ebs:
+              VolumeSize: !Ref DiskSize
+              VolumeType: gp2
+              DeleteOnTermination: true
+            DeviceName: /dev/xvda
+        UserData:
+          Fn::Base64:
+            !Sub | 
+            MIME-Version: 1.0
+            Content-Type: multipart/mixed; boundary="==MYBOUNDARY=="
+
+            --==MYBOUNDARY==
+            Content-Type: text/x-shellscript; charset="us-ascii"
+
+            #!/bin/bash
+            yum update
+            yum upgrade -y
+            --==MYBOUNDARY==--

@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: EC2 Launch template to create EKS Managed node group
+
+Parameters:
+  EKSNodeGroupName:
+    Description: "Specify EKS managed nodegroup name. (Example:- Hyphen-K8S-Managed-Node-Group, Option type: Mandatory)"
+    Default: Hyphen-K8S-Managed-Node-Group
+    MinLength: 1
+    Type: String
+
+  ManagedNodeLaunchTemplateStack:
+    Description: "Specify the launch template stack name. (Example:- cf-k8s-worker-node-launch-template, Option type: Mandatory)"
+    Default: cf-k8s-worker-node-launch-template
+    MinLength: 1
+    Type: String
+
+  EKSClusterName:
+    Description: "Specify the current EKS Cluster name. (Example:- HyphenKubernetesCluster, Option type: Mandatory)"
+    Default: HyphenKubernetesCluster
+    MinLength: 1
+    Type: String
+
+  EKSIAMRoleStack:
+    Description: "Specify IAM instance role stack. (Example:- cf-iam-roles-instance-profile, Option type: Mandatory)"
+    Default: cf-iam-roles-instance-profile
+    MinLength: 1
+    Type: String
+
+  VPCStack:
+    Description: "Specify VPC stack name. (Example - cf-vpc-multiaz-hybrid, Option type: Mandatory)"
+    Default: "cf-vpc-multiaz-hybrid"
+    MinLength: 1
+    Type: String
+
+Resources:
+  EKSNodegroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref EKSClusterName
+      LaunchTemplate:
+        Id:
+          Fn::ImportValue: !Sub "${ManagedNodeLaunchTemplateStack}-HyphenManagedNodeLaunchTemplateID"
+      NodegroupName: !Ref EKSNodeGroupName
+      NodeRole:
+        Fn::ImportValue: !Sub "${EKSIAMRoleStack}-WorkerNodeInstanceRole"
+      ScalingConfig:
+        MinSize: 1
+        DesiredSize: 1
+        MaxSize: 3
+      Subnets:
+        - Fn::ImportValue: !Sub "${VPCStack}-PrivateSubnet1"
+        - Fn::ImportValue: !Sub "${VPCStack}-PrivateSubnet2"
+        - Fn::ImportValue: !Sub "${VPCStack}-PrivateSubnet3"

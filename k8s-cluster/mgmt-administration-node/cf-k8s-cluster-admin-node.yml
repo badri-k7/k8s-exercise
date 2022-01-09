@@ -5,22 +5,26 @@ TemplaParameters:
     Description: "VPC Cloudformation stack name. (Example:- cf-vpc-multiaz-hybrid, Option type: Mandatory)"
     Type: String
     MinLength: 1
+    Default: cf-vpc-multiaz-hybrid
  
   KeyName:
-    Description: "Specify key pair name. (Example:- eks-managed-key , Option type: Mandatory)"
+    Description: "Specify SSH key pair name to access Admin Jumphost (Example:- hyphen-eks-managed-key , Option type: Mandatory)"
     Type: String
     MinLength: 8
     MaxLength: 16
+    Default: hyphen-eks-managed-key
 
   InstanceProfileArn:
     Description: "Specify the Instance Profile stack name. (Example:- cf-iam-roles-instance-profile, Option type: Mandatory)"
     Type: String
     MinLength: 1
+    Default: cf-iam-roles-instance-profile
 
   Eksclustername:
-    Description: "Specify the EKS Cluster name. (Example:- Hyphen-Kubernetes-Cluster , Option type: Mandatory)"
+    Description: "Specify the EKS Cluster name. (Example:- 	HyphenKubernetesCluster , Option type: Mandatory)"
     Type: String
     MinLength: 1
+    Default: 	HyphenKubernetesCluster
 
   NodeInstanceType:
     Description: "EC2 instance type for the node instances (Example:- t3a.small, Option type: Mandatory)"
@@ -31,9 +35,10 @@ TemplaParameters:
       - t3a.small
 
   EKSJumphostSG:
-    Description: "Specify Jumphost Security Group Stack. Example:- StackName - ApiGateway-QA-Jumphost-SG-Stack, Option type: Mandatory)"
+    Description: "Specify Jumphost Security Group Stack. Example:- StackName - cf-security-groups , Option type: Mandatory)"
     Type: String
     MinLength: 1
+    Default: cf-security-groups
 
   HealthCheckGracePeriod:
     Description: "Specify health check grace period. Example:- 300, Option type: Mandatory)"
@@ -45,46 +50,28 @@ TemplaParameters:
     Description: "Specify AMI id. Example:-ami-03bc54edd484cbc6e , Option type: Mandatory)"
     Type: AWS::EC2::Image::Id
     MinLength: 1
+    Default: ami-093edd2f93bd9e866
 
-  EKSJumphostVolume:
+  EKSJumphostVolumeSize:
     Description: "Specify Volume size. Example:- 50, Option type: Mandatory)"
     Type: Number
     Default: 50
-    MaxValue: 100
-
-  AvailabilityZone1:
-    Description: "Specify availability zones name . Example:- ap-southeast-1a, Option type: Mandatory)"
-    Type: String
-    MinLength: 1
-
-  AvailabilityZone2:
-    Description: "Specify availability zones name . Example:- ap-southeast-1b, Option type: Mandatory)"
-    Type: String
-    MinLength: 1
-
-  AvailabilityZone3:
-    Description: "Specify availability zones name . Example:- ap-southeast-1c, Option type: Mandatory)"
-    Type: String
-    MinLength: 1
   
   KubectlVersion:
-    Description: "Specify Kubectl binary version, (Example:- https://amazon-eks.s3.us-west-2.amazonaws.com/1.15.11/2020-09-18/bin/linux/amd64/kubectl)"
+    Description: "Specify Kubectl binary version, (Example:- https://amazon-eks.s3.us-west-2.amazonaws.com/1.20.4/2021-04-12/bin/linux/amd64/kubectl, Option Type: Mandatory)"
     Type: String
+    Default: https://amazon-eks.s3.us-west-2.amazonaws.com/1.20.4/2021-04-12/bin/linux/amd64/kubectl
+    MinLength: 1
     
 
-Resources:
-  EKSAdminNodeIAMRole:
-  
+Resources:  
   EKSJumphostAutoscalingGroup:
     CreationPolicy:
       ResourceSignal:
         Count: '1'
         Timeout: PT15M
     Properties:
-      AvailabilityZones:
-        - !Ref AvailabilityZone1
-        - !Ref AvailabilityZone2
-        - !Ref AvailabilityZone3
+      AvailabilityZones: !GetAZs region
       DesiredCapacity: '1'
       HealthCheckGracePeriod: !Ref HealthCheckGracePeriod
       LaunchConfigurationName: !Ref 'EKSJumphostLaunchConfig'
@@ -113,13 +100,13 @@ Resources:
     Properties:
       EbsOptimized: false
       IamInstanceProfile:
-        Fn::ImportValue: !Sub '${InstanceProfileArn}-JumphostInstanceProfile'
+        Fn::ImportValue: !Sub '${InstanceProfileArn}-AdminNodeInstanceProfile'
       ImageId: !Ref ImageId 
       InstanceType: !Ref NodeInstanceType
       KeyName: !Ref KeyName 
       SecurityGroups:
         - Fn::ImportValue: !Sub "${VPCStack}-DefaultSecurityGroupId"
-        - Fn::ImportValue: !Sub "${EKSJumphostSG}-SecurityGroupID"
+        - Fn::ImportValue: !Sub "${EKSJumphostSG}-AdminNodeSGID"
       BlockDeviceMappings:
       - DeviceName: "/dev/xvda"
         Ebs:
@@ -142,9 +129,11 @@ Resources:
                  complete -C '/usr/bin/aws_completer' aws
                 }
                export -f BashAutoCompletion
+
             # IAM role KubernetesDeveloper require to setup KubeConfig, RBAC for K8S users - role/KubernetesDeveloper'
              nonadminuser=ssm-user
              adminuser=ec2-user
+
                 InstallPrerequisitePackages()
                 {
                   yum update -y
@@ -170,7 +159,7 @@ Resources:
                   retaval3=$?
                   [ $retaval3 -ne 0 ] && echo $retaval3 && exit
 
-                  #Disabling this function to establish ssh connection faster. 
+                  #Disabling GSSAPIAuthentication to establish ssh connection faster. 
                   #
                   sed -i 's/GSSAPIAuthentication yes/GSSAPIAuthentication no/g' /etc/ssh/sshd_config
                   systemctl restart sshd && systemctl enable docker && systemctl start docker
@@ -198,52 +187,5 @@ Resources:
                   fi
                  }
 
-                ConfigForNonAdminUser()
-                {
-                  
-                  # Creating K8S kubeconfig for user ssm-user and configure bash completion
-                  su $nonadminuser -c 'BashAutoCompletion'
-                  su -l $nonadminuser -c 'aws eks --region ap-southeast-1 update-kubeconfig --name ${eksclustername} --role-arn arn:aws:iam::${AWS::AccountId}:role/KubernetesDeveloper --alias k8s-developer-user'
-                  retaval1=$?
-                  [ $retaval1 -ne 0 ] && echo $retaval1 && exit
-
-                  # Configuring aws login profile 
-                  accesskey=$(aws ssm get-parameters --region ap-southeast-1 --names k8s-nonadmin-user-accesskey --with-decryption| jq -r '.Parameters[].Value')
-                  retaval2=$?
-                  [ $retaval2 -ne 0 ] && echo $retaval2 && exit
-
-                  secretkey=$(aws ssm get-parameters --region ap-southeast-1 --names k8s-nonadmin-user-secret_accesskey --with-decryption | jq -r '.Parameters[].Value')
-                  retaval3=$?
-                  [ $retaval3 -ne 0 ] && echo $retaval3 && exit
-
-                  printf "%s\n%s\nap-southeast-1\njson" "$accesskey" "$secretkey" | aws configure 
-                  retaval4=$?
-                  [ $retaval4 -ne 0 ] && echo $retaval4 && exit
-
-                  mv /root/.aws /home/$nonadminuser/
-                  chown -R $nonadminuser:$nonadminuser /home/$nonadminuser/.aws
-                  retaval5=$?
-                  [ $retaval5 -ne 0 ] && echo $retaval5 && exit
-
-
-                  if [[ ( "$retaval1" -ne "0" ) && ( "$retaval2" -ne "0" ) && ( "$retaval3" -ne "0" ) && ( "$retaval4" -ne "0" ) && ( "$retaval5" -ne "0" )  ]]; then
-                      echo "Failed to create userid ssm-user or configure helm-tiller data & keys, AWS login profile, copy K8S kubeconfig for ssm-user"
-                  else
-                      echo "Sucessfully created userid ssm-user, configured helm-tiller data & keys, AWS login profile, K8S kubeconfig for ssm-user"
-                  fi
-                 }
-
                 InstallPrerequisitePackages
-                /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource EKSJumphostAutoscalingGroup --region ${AWS::Region}
-
-                DownloadingTools
-                /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource EKSJumphostAutoscalingGroup --region ${AWS::Region}
- 
-                ConfigForClusterAdmin
-                /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource EKSJumphostAutoscalingGroup --region ${AWS::Region}
-
-                ConfigForNonAdminUser
-                /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource EKSJumphostAutoscalingGroup --region ${AWS::Region}
-
-                DeployAPICcomponents
                 /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource EKSJumphostAutoscalingGroup --region ${AWS::Region}
