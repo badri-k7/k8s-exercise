@@ -1,0 +1,19 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: http-echo-ingress
+  annotations:
+    ingress.kubernetes.io/rewrite-target: /
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+  - http:
+paths:
+- path: /foo
+backend:
+serviceName: foo-service
+servicePort: 5678
+- path: /bar
+backend:
+serviceName: bar-service
+servicePort: 5678
