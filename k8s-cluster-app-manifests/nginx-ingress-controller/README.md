@@ -32,6 +32,7 @@ metadata:
     app.kubernetes.io/version: 1.1.0
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
+    enable-vts-status: "true"
   name: ingress-nginx-controller
   namespace: ingress-nginx
 data:
