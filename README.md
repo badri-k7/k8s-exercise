@@ -30,7 +30,7 @@ This repository contains all the Codes and Information needed to create Kubernet
 │   │   └── service.yaml
 │   ├── nginx-ingress-controller
 │   │   └── README.md
-│   └── promethus # ( Moni
+│   └── promethus 
 │       ├── cluster-role-and-role-binding.yaml
 │       ├── configmap.yaml
 │       ├── deployment.yaml
@@ -41,10 +41,11 @@ This repository contains all the Codes and Information needed to create Kubernet
 │   │   ├── avg_http_req_30m.csv
 │   │   └── avg_mem_usage_30m.csv
 ```
-1. global - Contains the base infra artifacts needed for the K8S Cluster
-2. k8s-cluster - Contains the infra artifacts needed to provision Master and Worker nodes for K8S.
+1. global - Contains the foundation infra artifacts ( Network, Authentication & Authorisation ) needed for the K8S Cluster
+2. k8s-cluster - Contains the core infra artifacts needed to provision Master and Worker nodes for K8S.
 3. k8s-cluster-app-manifests - Contains the K8S app manifests needed for creating Ingress controller, Prometheus and Terraform HTTP Echo service
 4. output - Contains the promql csv export of the data requested from benchmarking load
+
 ## Usage Instructions
 ```bash
 Step 1: Core - Foundation - VPC Creation:
@@ -60,9 +61,10 @@ Step 5: Core - Cluster - Worker Node Launch Template Creation
 aws cloudformation create-stack --stack-name cf-k8s-worker-node-launch-template --template-body file:///k8s-cluster-exercise/k8s-cluster/core-worker-nodes/launch-template/cf-k8s-cluster-workernode-launch-template.yaml 
 Step 6: Core - Cluster - Managed worker node Autoscaling Group  
 aws cloudformation create-stack --stack-name cf-k8s-managed-worker-nodes --template-body file:///k8s-cluster-exercise/k8s-cluster/core-worker-nodes/cf-k8s-cluster-worker-node.yaml
+
+Step 7: Follow the instructions here https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html to setup the Kubectl in the Admin node to interact with the K8S cluster created above
+
+Step 8: Execute the Kubernetes app manifests in any sequence ( i.e., Ingress controller/prometheus/http-echo ) with the files provided to setup the Application infrastructure 
+
 ```
-## Contributing
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-Please make sure to update tests as appropriate.
-## License
-[MIT](https://choosealicense.com/licenses/mit/)
+
