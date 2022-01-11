@@ -35,12 +35,16 @@ This repository contains all the Codes and Information needed to create Kubernet
 │       ├── configmap.yaml
 │       ├── deployment.yaml
 │       └── service.yaml
-└── README.md
+└── output
+│   ├── promql-export
+│   │   ├── avg_cpu_usage_30m.csv
+│   │   ├── avg_http_req_30m.csv
+│   │   └── avg_mem_usage_30m.csv
 ```
 1. global - Contains the base infra artifacts needed for the K8S Cluster
 2. k8s-cluster - Contains the infra artifacts needed to provision Master and Worker nodes for K8S.
 3. k8s-cluster-app-manifests - Contains the K8S app manifests needed for creating Ingress controller, Prometheus and Terraform HTTP Echo service
-
+4. output - Contains the promql csv export of the data requested from benchmarking load
 ## Usage Instructions
 ```bash
 Step 1: Core - Foundation - VPC Creation:
