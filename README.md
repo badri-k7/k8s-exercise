@@ -1,4 +1,4 @@
-# Hyphen K8SExercise
+# K8SExercise
 This repository contains all the Codes and Information needed to create Kubernetes cluster and Kube manifests needed to complete the exercise
 ## Environment used for this exercise
 1. AWS - Public cloud provider
